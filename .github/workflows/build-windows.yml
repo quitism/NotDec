@@ -20,12 +20,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm-14.0.6.obj
-          key: llvm-14.0.6-windows-win64-v2
+          key: llvm-14.0.6-windows-win64-v3
 
       - name: Download and extract LLVM 14 if not cached
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
+          if (Test-Path "llvm-14.0.6.obj") { Remove-Item -Recurse -Force "llvm-14.0.6.obj" }
+          
           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-win64.exe"
           Write-Host "Downloading LLVM 14 prebuilts..."
           Invoke-WebRequest -Uri $url -OutFile "llvm-installer.exe"
@@ -35,11 +37,26 @@ jobs:
           & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -ollvm-14.0.6.obj -y
           Remove-Item "llvm-installer.exe"
 
-      - name: Verify LLVM Path Exists
+      - name: Verify and Fix LLVM Path Structure
         shell: pwsh
         run: |
+          # If include/llvm doesn't exist directly, check if 7z nested it inside a subfolder
           if (-not (Test-Path "llvm-14.0.6.obj/include/llvm")) {
-              Write-Error "LLVM include directory not found at llvm-14.0.6.obj/include/llvm!"
+              Write-Host "LLVM headers not in expected root. Searching for nested structure..."
+              $includeDir = Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse -Directory -Filter "include" | Select-Object -First 1
+              if ($includeDir) {
+                  $srcRoot = $includeDir.Parent.FullName
+                  if ($srcRoot -ne (Resolve-Path "llvm-14.0.6.obj").Path) {
+                      Write-Host "Moving contents from nested folder ($srcRoot) to root..."
+                      Get-ChildItem -Path $srcRoot | Move-Item -Destination "llvm-14.0.6.obj" -Force
+                  }
+              }
+          }
+
+          # Final sanity check
+          if (-not (Test-Path "llvm-14.0.6.obj/include/llvm")) {
+              Write-Error "LLVM include directory still not found at llvm-14.0.6.obj/include/llvm!"
+              Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse | Select-Object -First 20 FullName
               exit 1
           }
           Write-Host "LLVM path verified successfully."
