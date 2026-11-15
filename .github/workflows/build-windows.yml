@@ -20,7 +20,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm-14.0.6.obj
-          key: llvm-14.0.6-windows-win64-v1
+          key: llvm-14.0.6-windows-win64-v2
 
       - name: Download and extract LLVM 14 if not cached
         if: steps.cache-llvm.outputs.cache-hit != 'true'
@@ -30,10 +30,19 @@ jobs:
           Write-Host "Downloading LLVM 14 prebuilts..."
           Invoke-WebRequest -Uri $url -OutFile "llvm-installer.exe"
           
-          Write-Host "Extracting to llvm-14.0.6.obj..."
-          # LLVM's official installer is a 7z SFX archive, 7-zip is preinstalled on GH runners
-          & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -olllvm-14.0.6.obj -y
+          Write-Host "Extracting LLVM..."
+          New-Item -ItemType Directory -Force -Path "llvm-14.0.6.obj" | Out-Null
+          & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -ollvm-14.0.6.obj -y
           Remove-Item "llvm-installer.exe"
+
+      - name: Verify LLVM Path Exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "llvm-14.0.6.obj/include/llvm")) {
+              Write-Error "LLVM include directory not found at llvm-14.0.6.obj/include/llvm!"
+              exit 1
+          }
+          Write-Host "LLVM path verified successfully."
 
       - name: Install Boost via vcpkg
         shell: pwsh
@@ -43,7 +52,6 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          # Load the Visual Studio Developer Command Prompt environment variables into PowerShell
           $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
           if ($vsPath) {
               Import-Module "$vsPath\Common7\Tools\Microsoft.VisualStudio.DevShell.Dll"
