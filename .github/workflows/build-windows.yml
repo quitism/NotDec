@@ -29,12 +29,13 @@ jobs:
           if (Test-Path "llvm-14.0.6.obj") { Remove-Item -Recurse -Force "llvm-14.0.6.obj" }
           
           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-win64.exe"
-          Write-Host "Downloading LLVM 14 prebuilts..."
+          Write-Host "Downloading LLVM 14 installer..."
           Invoke-WebRequest -Uri $url -OutFile "llvm-installer.exe"
           
-          Write-Host "Extracting LLVM..."
+          Write-Host "Extracting NSIS installer payload with 7-Zip..."
           New-Item -ItemType Directory -Force -Path "llvm-14.0.6.obj" | Out-Null
-          & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -ollvm-14.0.6.obj -y
+          
+          Start-Process -FilePath "llvm-installer.exe" -ArgumentList "/S", "/D=$PWD\llvm-14.0.6.obj" -Wait
           Remove-Item "llvm-installer.exe"
 
       - name: Verify and Fix LLVM Path Structure
