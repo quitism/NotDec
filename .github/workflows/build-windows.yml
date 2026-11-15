@@ -43,7 +43,14 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+          # Load the Visual Studio Developer Command Prompt environment variables into PowerShell
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          if ($vsPath) {
+              Import-Module "$vsPath\Common7\Tools\Microsoft.VisualStudio.DevShell.Dll"
+              Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation
+          }
+
+          cmake -B build -G "Ninja" `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_BUILD_TYPE=Release
 
