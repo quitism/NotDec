@@ -20,7 +20,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm-14.0.6.obj
-          key: llvm-14.0.6-windows-win64-v4
+          key: llvm-14.0.6-windows-win64-v5
 
       - name: Download and extract LLVM 14 if not cached
         if: steps.cache-llvm.outputs.cache-hit != 'true'
@@ -40,26 +40,26 @@ jobs:
       - name: Locate and Flatten LLVM Directory Structure
         shell: pwsh
         run: |
-          # Find where 'include\llvm' actually landed after extraction
-          $found = Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse -Directory -Filter "llvm" | Where-Object { $_.Parent.Name -eq "include" } | Select-Object -First 1
+          Write-Host "Searching extracted contents..."
+          $includePath = Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse -Directory -Filter "include" | Select-Object -First 1
           
-          if ($found) {
-              $llvmRoot = $found.Parent.Parent.FullName
-              Write-Host "Found LLVM root payload at: $llvmRoot"
+          if ($includePath) {
+              $payloadRoot = $includePath.Parent.FullName
+              Write-Host "Found LLVM payload root at: $payloadRoot"
               
-              if ($llvmRoot -ne (Resolve-Path "llvm-14.0.6.obj").Path) {
-                  Write-Host "Moving contents up to llvm-14.0.6.obj root..."
-                  Get-ChildItem -Path $llvmRoot | Move-Item -Destination "llvm-14.0.6.obj" -Force
+              # Move everything from the payload root up to llvm-14.0.6.obj root if it's nested
+              if ($payloadRoot -ne (Resolve-Path "llvm-14.0.6.obj").Path) {
+                  Get-ChildItem -Path $payloadRoot | Move-Item -Destination "llvm-14.0.6.obj" -Force
               }
           }
 
-          # Final absolute check
+          # If there's still no include/llvm, print out what's actually inside for debugging
           if (-not (Test-Path "llvm-14.0.6.obj/include/llvm")) {
-              Write-Error "Critical: LLVM include/llvm structure still missing!"
-              Get-ChildItem -Path "llvm-14.0.6.obj" -Depth 3
+              Write-Error "Still cannot find include/llvm. Dumping directory tree:"
+              Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse -Depth 2 | Select-Object -First 50 FullName
               exit 1
           }
-          Write-Host "LLVM structure successfully flattened and verified!"
+          Write-Host "LLVM structure verified successfully!"
 
       - name: Verify and Fix LLVM Path Structure
         shell: pwsh
