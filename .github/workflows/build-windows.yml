@@ -20,7 +20,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm-14.0.6.obj
-          key: llvm-14.0.6-windows-win64-v3
+          key: llvm-14.0.6-windows-win64-v4
 
       - name: Download and extract LLVM 14 if not cached
         if: steps.cache-llvm.outputs.cache-hit != 'true'
@@ -34,11 +34,32 @@ jobs:
           
           Write-Host "Extracting installer payload..."
           New-Item -ItemType Directory -Force -Path "llvm-14.0.6.obj" | Out-Null
-          
-          # Use 7-zip to explicitly extract the NSIS installer contents into the obj folder without running the GUI wizard
           & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -o"llvm-14.0.6.obj" -y
-          
           Remove-Item "llvm-installer.exe"
+
+      - name: Locate and Flatten LLVM Directory Structure
+        shell: pwsh
+        run: |
+          # Find where 'include\llvm' actually landed after extraction
+          $found = Get-ChildItem -Path "llvm-14.0.6.obj" -Recurse -Directory -Filter "llvm" | Where-Object { $_.Parent.Name -eq "include" } | Select-Object -First 1
+          
+          if ($found) {
+              $llvmRoot = $found.Parent.Parent.FullName
+              Write-Host "Found LLVM root payload at: $llvmRoot"
+              
+              if ($llvmRoot -ne (Resolve-Path "llvm-14.0.6.obj").Path) {
+                  Write-Host "Moving contents up to llvm-14.0.6.obj root..."
+                  Get-ChildItem -Path $llvmRoot | Move-Item -Destination "llvm-14.0.6.obj" -Force
+              }
+          }
+
+          # Final absolute check
+          if (-not (Test-Path "llvm-14.0.6.obj/include/llvm")) {
+              Write-Error "Critical: LLVM include/llvm structure still missing!"
+              Get-ChildItem -Path "llvm-14.0.6.obj" -Depth 3
+              exit 1
+          }
+          Write-Host "LLVM structure successfully flattened and verified!"
 
       - name: Verify and Fix LLVM Path Structure
         shell: pwsh
