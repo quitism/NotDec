@@ -18,35 +18,20 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wabt python-is-python3 clang-14 cmake zlib1g-dev g++ ninja-build libboost-all-dev lld
+          sudo apt-get install -y wabt python-is-python3 clang-14 llvm-14-dev cmake zlib1g-dev g++ ninja-build libboost-all-dev lld
 
       - name: Install wasi-sdk
         run: |
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz -P /tmp
+          wget -nv https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz -P /tmp
           sudo tar xf /tmp/wasi-sdk-20.0-linux.tar.gz -C /opt
 
-      - name: Build or Setup LLVM 14
-        run: |
-          # If the repo script builds LLVM, run it (or use apt if it satisfies CMake)
-          # The README mentions executing scripts/build-debug-llvm.sh or using prebuilts. 
-          # Let's check if scripts/build-debug-llvm.sh exists, otherwise link apt's LLVM 14.
-          if [ -f "scripts/build-debug-llvm.sh" ]; then
-            # If building from script takes too long, we can point LT_LLVM_INSTALL_DIR to /usr/lib/llvm-14
-            echo "Script found, but let's see if we can use system LLVM-14 to save build time."
-          fi
-          
-          # Symlink or set up llvm-14.0.6.obj expected by CMakeLists.txt
-          mkdir -p llvm-14.0.6.obj
-          ln -s /usr/lib/llvm-14 llvm-14.0.6.obj/include || true
-          # Alternatively, map the system llvm-14 paths cleanly:
-          # (Or let the script run if necessary)
-
-      - name: Configure CMake (following README)
+      - name: Configure CMake
         run: |
           cmake -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE \
                 -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang-14 \
                 -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++-14 \
                 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
+                -DLT_LLVM_INSTALL_DIR=/usr/lib/llvm-14 \
                 --no-warn-unused-cli -S . -B ./build -G Ninja
 
       - name: Build Project
