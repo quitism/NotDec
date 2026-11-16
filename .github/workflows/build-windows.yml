@@ -28,19 +28,17 @@ jobs:
         run: |
           if (Test-Path "llvm-14.0.6.obj") { Remove-Item -Recurse -Force "llvm-14.0.6.obj" }
           
-          # Download official LLVM 14 prebuilt archive (.tar.xz) instead of the installer exe
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/clang+llvm-14.0.6-x86_64-pc-windows-msvc.tar.xz"
-          Write-Host "Downloading LLVM 14 archive..."
-          Invoke-WebRequest -Uri $url -OutFile "llvm.tar.xz"
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-win64.exe"
+          Write-Host "Downloading LLVM 14 installer..."
+          Invoke-WebRequest -Uri $url -OutFile "llvm-installer.exe"
           
-          Write-Host "Extracting archive with 7-Zip..."
+          Write-Host "Extracting installer payload..."
           New-Item -ItemType Directory -Force -Path "llvm-14.0.6.obj" | Out-Null
           
-          # 7-Zip handles tar.xz natively in two passes (xz decompression -> tar extraction)
-          & "C:\Program Files\7-Zip\7z.exe" x "llvm.tar.xz" -Toff.tar
-          & "C:\Program Files\7-Zip\7z.exe" x "off.tar" -ollvm-14.0.6.obj -y
+          # Use 7-zip to explicitly extract the NSIS installer contents into the obj folder without running the GUI wizard
+          & "C:\Program Files\7-Zip\7z.exe" x "llvm-installer.exe" -o"llvm-14.0.6.obj" -y
           
-          Remove-Item "llvm.tar.xz", "off.tar"
+          Remove-Item "llvm-installer.exe"
 
       - name: Verify and Fix LLVM Path Structure
         shell: pwsh
