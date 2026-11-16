@@ -36,7 +36,14 @@ jobs:
 
       - name: Build Project
         run: |
-          cmake --build ./build --target all --parallel $(nproc)
+          cmake --build ./build --parallel $(nproc) -- -k 0
+
+      - name: Debug LLVM linkage
+        if: always()
+        run: |
+          readelf -d build/bin/GraphTest | grep NEEDED || true
+          ldd build/bin/GraphTest | grep -i -E "llvm|clang" || true
+          ./build/bin/notdec-decompile --help || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
