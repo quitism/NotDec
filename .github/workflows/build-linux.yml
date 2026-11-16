@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repository with submodules
@@ -15,15 +16,42 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wabt python-is-python3 clang-14 llvm-14-dev libclang-14-dev cmake zlib1g-dev g++ ninja-build libboost-all-dev lld
+          sudo apt-get install -y wabt python-is-python3 clang-14 cmake zlib1g-dev g++ ninja-build libboost-all-dev lld
 
       - name: Install wasi-sdk
         run: |
           wget -nv https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz -P /tmp
           sudo tar xf /tmp/wasi-sdk-20.0-linux.tar.gz -C /opt
+
+      - name: Restore LLVM cache
+        id: llvm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: llvm-14.0.6.obj
+          key: llvm-14.0.6-release-${{ runner.os }}-${{ hashFiles('scripts/build-debug-llvm.sh') }}
+
+      - name: Build LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        env:
+          CMAKE_GENERATOR: Ninja
+        run: |
+          echo n | bash scripts/build-debug-llvm.sh
+          rm -rf llvm-build llvm-source
+
+      - name: Save LLVM cache
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: llvm-14.0.6.obj
+          key: llvm-14.0.6-release-${{ runner.os }}-${{ hashFiles('scripts/build-debug-llvm.sh') }}
 
       - name: Configure CMake
         run: |
@@ -31,19 +59,11 @@ jobs:
                 -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang-14 \
                 -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++-14 \
                 -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
-                -DLT_LLVM_INSTALL_DIR=/usr/lib/llvm-14 \
                 --no-warn-unused-cli -S . -B ./build -G Ninja
 
       - name: Build Project
         run: |
-          cmake --build ./build --parallel $(nproc) -- -k 0
-
-      - name: Debug LLVM linkage
-        if: always()
-        run: |
-          readelf -d build/bin/GraphTest | grep NEEDED || true
-          ldd build/bin/GraphTest | grep -i -E "llvm|clang" || true
-          ./build/bin/notdec-decompile --help || true
+          cmake --build ./build --target all --parallel $(nproc)
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
