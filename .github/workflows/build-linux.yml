@@ -8,18 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
 
     steps:
       - name: Checkout repository with submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
-          df -h /
 
       - name: Install Dependencies
         run: |
@@ -31,27 +25,14 @@ jobs:
           wget -nv https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz -P /tmp
           sudo tar xf /tmp/wasi-sdk-20.0-linux.tar.gz -C /opt
 
-      - name: Restore LLVM cache
-        id: llvm-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: llvm-14.0.6.obj
-          key: llvm-14.0.6-release-${{ runner.os }}-${{ hashFiles('scripts/build-debug-llvm.sh') }}
-
-      - name: Build LLVM
-        if: steps.llvm-cache.outputs.cache-hit != 'true'
-        env:
-          CMAKE_GENERATOR: Ninja
+      - name: Download prebuilt LLVM 14.0.6
         run: |
-          echo n | bash scripts/build-debug-llvm.sh
-          rm -rf llvm-build llvm-source
-
-      - name: Save LLVM cache
-        if: steps.llvm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: llvm-14.0.6.obj
-          key: llvm-14.0.6-release-${{ runner.os }}-${{ hashFiles('scripts/build-debug-llvm.sh') }}
+          wget -nv https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/clang+llvm-14.0.6-x86_64-linux-gnu-rhel-8.4.tar.xz
+          mkdir llvm-14.0.6.obj
+          tar xf clang+llvm-14.0.6-x86_64-linux-gnu-rhel-8.4.tar.xz -C llvm-14.0.6.obj --strip-components=1
+          rm clang+llvm-14.0.6-x86_64-linux-gnu-rhel-8.4.tar.xz
+          ls llvm-14.0.6.obj/lib/cmake
+          ls llvm-14.0.6.obj/lib | grep -E "libLLVM-|libclang-cpp" || echo "no shared llvm libs, good"
 
       - name: Configure CMake
         run: |
